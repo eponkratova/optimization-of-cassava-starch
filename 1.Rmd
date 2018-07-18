@@ -1,0 +1,104 @@
+---
+title: "Optimization of Cassava Starch"
+author: "EPonkratova"
+date: "July 17, 2018"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Problem statement
+
+One of the CIALCA's partners, a producer of a large-scale cassava processing producing cassava stratch for export wants to improve production techniques to increase starch content of roots supplied to the factory.
+
+## Research questions
+
+Based on existing studies in the domain, identify (1) whether changing harvesting dates can improve start content.
+(2) whether fertilizer application has a negative impact on starch content.
+
+The below analysis is based on the assumption that a harvesting season depends on a varietal characteristicas, site/region and care with the site/region being the primarily factor.
+
+## Methodology
+1. Review of the existing database of studies;
+2. Meta-analysis;
+3. Results presentation
+
+### Review of the existing database of studies 
+```{r}
+literatureReview <- read.csv("./literatureReview.csv")
+#Assigning IDs to every study to group them afterwards as the STUDYID col is not an unique identifier
+LR <- transform(literatureReview,id=as.numeric(factor(title)))
+```
+
+The article analysis showed that each study checks impact of mainly one key variable such variety ('nature') or agronomic variable ('nurture') such as fertilizer composition,  water regime, planting techniques and harvest dates on the yield. All articles were categorized based on the variable reviewed.
+
+```{r}
+#Grouping the studies previously segmented either nature or nutrite based on a subjective evaluation i.e. all studies that have the keyword 'overcrop' were assigned to the category 'nature'
+nurture <- c(1,3,4,12,13,14,15,17,18,19,20,21,22,23,24,25,26,28,29,30,31,32,33,34,35,38,39,40,41,42,43,50,51,52,53,56,57,59,61,62,63,65,66,67,68,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,91,93,94,95,96,97,98,99,100,102,103,104,106)
+LRUnique <- unique(LR[c('id','title','region')])
+LRUnique <- cbind(LRUnique, articleType=ifelse(LRUnique$id %in% nurture, "nurture", "nature"))
+LRUnique <- cbind(LRUnique, articleTypeDetailed=ifelse(LRUnique$articleType=="nature","nature",ifelse(grepl('water|dry|hydraulic', ignore.case = TRUE, LRUnique$title), "water",                                                 ifelse(grepl('nutrition|potassium|fertilizer|fertilizing|fertilizers|nitrogen|mineral|fertilization|ash|potassium|land|nutrient|soil', ignore.case = TRUE, LRUnique$title),"fertilizer",
+ifelse(grepl('tillage|tilled', ignore.case = TRUE, LRUnique$title),"tillage",
+ifelse(grepl('date', ignore.case = TRUE, LRUnique$title),"plantedDate","others"))))))
+```
+
+```{r pressure, echo=FALSE}
+#Building a graph
+LRFreq <- as.data.frame(table(LRUnique$articleTypeDetailed)) 
+LROrdered <- LRFreq[order(-LRFreq$Freq),]
+pie(LROrdered$Freq, 
+    labels = paste(LROrdered$Var1,"-", LROrdered$Freq, sep=""), 
+    main="# of studies per a variable",
+    cex=0.8)    
+```
+
+There is just one study in the database - 'Effect of date of planting and rainfall distribution on the yield of five cassava varieties in Lampung, Indonesia' by Fauzan I and	Puspitorini P - which investigate the impact of planting dates on yield. However as the study was done in Indonesia, the results cannot be applied, unless the CIALCA's partner is located in the Asia and Oceania region.
+
+```{r}
+#Extracting title of the article which has plantedDate
+LRUnique[LRUnique[, "articleTypeDetailed"] == "plantedDate",]
+```
+
+Based on the study title as well as the abstract, the regions for the majority of the articles were identified where SSA is the abbrevation for Sub-Saharan Africa; APAC, for the Asia-Pacific region; LATAM, for Latin America; WAFR, for West Africa; EAF, for Eastern Africa; and CA, for Central America.
+
+```{r pressure, echo=FALSE}
+LRFreqReg <- as.data.frame(table(LRUnique$region)) 
+LROrderedReg <- LRFreqReg[order(-LRFreqReg$Freq),]
+barplot(LROrderedReg$Freq, main="# of studies per region", 
+        las=2, cex.names=0.8,
+        names.arg = c("SSA", "APAC" , "LATAM", "WAFR", 
+                      "EAF","CA"))
+```
+As the analysis is based on the hypothesis that the site/region is the primarily factor in the yield variability, the cross-tab which shows the # of studies by a region and planting season was built. The task doesn't say explicitly the region to which the partner belongs to, but assuming that the partner is from West Africa, the planting periods were April, May, June, July, September, October, and November (see the table below).    
+
+```{r}
+LRUniqueObservations <- unique(LR[c('id','region','monthPlanted')])
+attach(LRUniqueObservations)
+temperatureRegion <- data.frame(unclass(table(LRUniqueObservations$region,LRUniqueObservations$monthPlanted)))
+temperatureRegion
+```
+
+Asia and Oceania, Latin America and Caribbean, Sub-Saharan Africa
+
+
+```{r pressure, echo=FALSE}
+#Removing NAs to calculate average
+stratchRemovedNa <- LR[!is.na(LR$percStarch1), ]
+stratchRemovedNa <- stratchRemovedNa[!is.na(stratchRemovedNa$region), ]
+
+library(plyr)
+meanRegion <- ddply(stratchRemovedNa, .(region,monthPlanted), colwise(mean, .(percStarch1)))
+plot(percStarch1 ~ monthPlanted,
+     las=2, 
+     cex.axis=0.6,     
+     ylab = "Mean of Starch conent, %",
+     xlab= "",
+     main = "Starch conent by planting date",
+     data = meanRegion)
+```
